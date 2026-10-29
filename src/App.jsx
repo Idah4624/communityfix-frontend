@@ -1,4 +1,3 @@
-
 import { useCallback, useEffect, useState } from "react";
 import { getIssues, voteForIssue } from "./services/api";
 import Register from "./components/Register";
@@ -8,6 +7,7 @@ import ReportIssue from "./components/ReportIssue";
 function App() {
   const [issues, setIssues] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [sortBy, setSortBy] = useState("newest");
   const [loadError, setLoadError] = useState("");
   const [voting, setVoting] = useState({});
   const [votedIssues, setVotedIssues] = useState([]);
@@ -30,6 +30,20 @@ function App() {
     loadIssues();
   }, [loadIssues]);
 
+  // Sort issues according to the selected option.
+  const sortedIssues = [...issues].sort((a, b) => {
+    if (sortBy === "most_votes") {
+      return (b.vote_count ?? 0) - (a.vote_count ?? 0);
+    }
+
+    if (sortBy === "fewest_votes") {
+      return (a.vote_count ?? 0) - (b.vote_count ?? 0);
+    }
+
+    // Default: newest issues first.
+    return new Date(b.created_at) - new Date(a.created_at);
+  });
+
   const handleVote = async (issueId) => {
     setVoting((previous) => ({
       ...previous,
@@ -44,7 +58,11 @@ function App() {
     try {
       await voteForIssue(issueId);
 
-      setVotedIssues((previous) => [...previous, issueId]);
+      setVotedIssues((previous) =>
+        previous.includes(issueId)
+          ? previous
+          : [...previous, issueId]
+      );
 
       setVoteMessages((previous) => ({
         ...previous,
@@ -68,6 +86,7 @@ function App() {
   return (
     <div style={{ padding: "20px" }}>
       <h1>CommunityFix AI</h1>
+
       <p>
         Report community problems and help improve your neighbourhood.
       </p>
@@ -86,6 +105,29 @@ function App() {
 
       <h2>Community Issues</h2>
 
+      {/* Issue sorting dropdown */}
+      <div style={{ marginBottom: "20px" }}>
+        <label htmlFor="sort-issues">
+          <strong>Sort issues: </strong>
+        </label>
+
+        <select
+          id="sort-issues"
+          value={sortBy}
+          onChange={(event) => setSortBy(event.target.value)}
+          style={{
+            padding: "8px",
+            marginLeft: "8px",
+            borderRadius: "5px",
+            cursor: "pointer",
+          }}
+        >
+          <option value="newest">Newest first</option>
+          <option value="most_votes">Most votes</option>
+          <option value="fewest_votes">Fewest votes</option>
+        </select>
+      </div>
+
       {loading ? (
         <p>Loading issues...</p>
       ) : loadError ? (
@@ -97,9 +139,14 @@ function App() {
         <p>No issues found.</p>
       ) : (
         <ul>
-          {issues.map((issue) => (
+          {sortedIssues.map((issue) => (
             <li key={issue.id} className="issue-card">
               <h3>{issue.title}</h3>
+
+              <p>
+                <strong>Votes:</strong> {issue.vote_count ?? 0}
+              </p>
+
               <p>{issue.description}</p>
 
               <p>
@@ -126,7 +173,10 @@ function App() {
 
               <button
                 onClick={() => handleVote(issue.id)}
-                disabled={voting[issue.id] || votedIssues.includes(issue.id)}
+                disabled={
+                  voting[issue.id] ||
+                  votedIssues.includes(issue.id)
+                }
               >
                 {voting[issue.id]
                   ? "Submitting vote..."
